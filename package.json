@@ -1,0 +1,22 @@
+{
+  "name": "mongo-vfs",
+  "version": "0.0.1",
+  "description": "A MongoDB GridFS implementation of vfs.",
+  "main": "index.js",
+  "scripts": {
+    "test": "make test"
+  },
+  "keywords": [
+    "vfs",
+    "mongodb",
+    "gridfs"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "mongodb": "1.x"
+  },
+  "devDependencies": {
+    "mocha": "1.3.x",
+    "should": "1.x"
+  }
+}
