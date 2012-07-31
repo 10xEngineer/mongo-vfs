@@ -27,6 +27,7 @@ class MongoFS
     files.find('metadata.path': path).toArray cb
   readfile: (path, options, cb) ->
     [dir, base] = extractName path
+    stream = new Stream()
     query = 
       filename: base
       'metadata.path': dir
@@ -34,7 +35,6 @@ class MongoFS
     , (err, doc) ->
       return cb err, {} if err
       return cb err, {} unless doc
-      stream = new Stream()
       cursor = chunks.find 
         files_id: doc._id
       # This is another object in args saying 'give me only data'
@@ -43,7 +43,7 @@ class MongoFS
         return stream.emit 'error', err if err
         return stream.emit 'end' unless chunk
         stream.emit 'data', chunk.data.buffer
-      cb null, {stream}
+    cb null, {stream}
   mkfile: (path, options, cb) ->
     [dir, base] = extractName path
     buffer = []
@@ -51,17 +51,45 @@ class MongoFS
       buffer.push ['data', chunk]
     readable.on 'end', onEnd = ->
       buffer.push ['end']
-    gs = new GridStore db, base, 'w', 
-      matadata: 
+    temp = "#{base}."
+    temp+= "#{Date.now().toString 36}-"
+    temp+= "#{(Math.random() * 0x100000000).toString 36}" 
+    gs = new GridStore db, temp, 'w', 
+      metadata:  
         path: dir
     gs.open (err) ->
       readable.on 'data', (chunk) ->
         gs.write chunk, (err) ->
-      readable.on 'end', ->
+      stream = gs.stream()
+      stream.on 'end', (cb = ->) -> 
         gs.close cb
+      readable.on 'end', ->
+        cb null, 
+          tmpPath: "#{dir}/#{temp}"
+          stream: stream
       readable.removeListener 'data', onData
       readable.removeListener 'end', onEnd
       _.forEach buffer, (event) ->
         readable.emit.apply readable, event
+        
+  rename: (path, options, cb) ->
+    from = extractName options.from
+    to = extractName path
+    # Rename means
+    files.findAndModify 
+    # - find temporally name
+      filename: from[1]
+      'metadata.path': from[0]
+    # - sort order
+    , []
+    # - name it properly
+    , $set: 
+      filename: to[1]
+      'metadata.path': to[0]
+    , {}
+    # - then call cb
+    , cb # end of rename            
+    
+    
     
 module.exports = MongoFS
