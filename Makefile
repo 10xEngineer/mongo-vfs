@@ -6,12 +6,13 @@ test:
 		--reporter $(REPORTER) \
 		test/*.js
 
-coffee-test: 
+auto-test: 
 	@NODE_ENV=test \
+	nodemon -w src/ -w test/ \
 	./node_modules/.bin/mocha \
 		--reporter $(REPORTER) \
-		--compilers coffee
+		--compilers coffee:coffee-script \
 		test/*.coffee
 	
 
-.PHONY: coffee-test
+.PHONY: test
