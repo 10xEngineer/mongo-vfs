@@ -20,7 +20,9 @@ describe 'mongo-vfs', ->
   files   = null
   chunks  = null
   
-  before (done) ->     
+  before (done) -> 
+    # clear screen
+    process.stdout.write '\u001B[2J\u001B[0;0f'
     mfs.open done
     
   beforeEach (done) ->
@@ -88,3 +90,26 @@ describe 'mongo-vfs', ->
             done err if err
             docs.should.be.empty
             done()  
+            
+    it 'should rename a directory', (done) ->
+      mfs.rename '/baz', {from:'/folder'}, (err) ->
+        done err if err
+        # Now there should be /baz file
+        cursor = files.find 
+          'metadata.path': '/baz'
+        cursor.toArray (err, docs) ->
+          done err if err
+          docs.should.not.be.empty
+          # ... and /folder/bar should be gone
+          cursor = files.find 
+            filename: 'bar'
+            'metadata.path': '/folder'
+          cursor.toArray (err, docs) ->
+            done err if err
+            docs.should.be.empty
+            done()  
+  
+  # describe 'readdir', ->
+  #   it 'should list all files and folders in directory', (done) ->
+  #     mfs.readdir
+

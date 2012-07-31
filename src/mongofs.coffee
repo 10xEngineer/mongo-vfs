@@ -3,6 +3,7 @@ Path        = require 'path'
 _           = require 'underscore'
 EventEmitter= require('events').EventEmitter
 Stream      = require 'stream'
+async       = require 'async'
 Db          = mongodb.Db
 Server      = mongodb.Server
 Connection  = mongodb.Connection
@@ -23,8 +24,13 @@ class MongoFS
       files   = db.collection 'fs.files'
       chunks  = db.collection 'fs.chunks'
       cb.apply null, arguments
-  readdir: (path, cb) -> 
-    files.find('metadata.path': path).toArray cb
+  readdir: (path, options, cb) ->
+    stream = new Stream()
+    stream.readable = true
+    cb null, {stream}
+    files.find('metadata.path': path).each (err, doc) ->
+      stream.emit 'data', doc.filename
+    
   readfile: (path, options, cb) ->
     [dir, base] = extractName path
     stream = new Stream()
@@ -75,21 +81,29 @@ class MongoFS
   rename: (path, options, cb) ->
     from = extractName options.from
     to = extractName path
-    # Rename means
-    files.findAndModify 
-    # - find temporally name
+    # Rename file
+    renameFile = (next) -> files.findAndModify 
+    # query
       filename: from[1]
       'metadata.path': from[0]
-    # - sort order
+    # sort order
     , []
-    # - name it properly
+    # name it properly
     , $set: 
       filename: to[1]
       'metadata.path': to[0]
     , {}
-    # - then call cb
-    , cb # end of rename            
+    , next # end of renameFile
     
+    # Rename folder
+    renameFolder = (next) -> files.findAndModify 
+      'metadata.path': options.from
+    , []
+    , $set: 
+      'metadata.path': path
+    , {}
+    , next # end of renameFolder
     
+    async.parallel [renameFile, renameFolder], cb # end of rename
     
 module.exports = MongoFS
