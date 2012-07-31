@@ -9,31 +9,20 @@ Connection  = mongodb.Connection
 GridStore   = mongodb.GridStore
 
 class MongoFS
-  files = null
-  chunks = null
-  db = null
+  files   = null
+  chunks  = null
+  db      = null
   extractName = (path) -> [ Path.dirname(path), Path.basename path ]
+  
   constructor: (@options) ->
     server = new Server @options.host, @options.port, {}
-    db = new Db @options.database, server    
-    files = db.collection 'fs.files'
-    chunks = db.collection 'fs.chunks'
-    # gs = new GridStore db, 'root.coffee', 'w', 
-    #   content_type: 'application/coffee'
-    #   metadata:
-    #     path: '/folder'
-    #     bucketId: '412hab211-121bafhf'
-    #     user: 'Jan Fabian'
-    #   chunk_size: 1024*4
-    # db.open (err) ->
-    #   console.log err
-    #   gs.open (err, gs) ->
-    #     console.log err
-    #     gs.write 'bar', (err, gs) ->
-    #       gs.close (err) ->
-    #         db.close()
+    db = new Db @options.database, server
   open: (cb) -> 
-    db.open cb
+    db.open (err, db) -> 
+      db      = db
+      files   = db.collection 'fs.files'
+      chunks  = db.collection 'fs.chunks'
+      cb.apply null, arguments
   readdir: (path, cb) -> 
     files.find('metadata.path': path).toArray cb
   readfile: (path, options, cb) ->
@@ -45,7 +34,6 @@ class MongoFS
     , (err, doc) ->
       return cb err, {} if err
       return cb err, {} unless doc
-      console.log doc
       stream = new Stream()
       cursor = chunks.find 
         files_id: doc._id
