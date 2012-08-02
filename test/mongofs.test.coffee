@@ -2,6 +2,7 @@ MongoFS     = require '../src/mongofs'
 mongodb     = require 'mongodb'
 Stream      = require 'stream'
 Path        = require 'path'
+assert      = require 'assert'
 Db          = mongodb.Db
 Server      = mongodb.Server
 Connection  = mongodb.Connection
@@ -33,7 +34,7 @@ describe 'mongo-vfs', ->
       chunks = db.collection 'fs.chunks'
       files.remove()
       chunks.remove()
-      addFile done
+      addFile -> addCoffeeFile done
     addFile = (next) ->
       gs = new GridStore db, 'bar', 'w', 
         metadata: 
@@ -41,6 +42,15 @@ describe 'mongo-vfs', ->
       gs.open (err) ->
         gs.write 'foo', (err) ->
           gs.close next
+    addCoffeeFile = (next) ->      
+      gs = new GridStore db, 'mock.coffee', 'w', 
+        metadata: 
+          path: '/'
+        content_type: 'application/coffee'
+      gs.open (err) ->
+        gs.writeFile __dirname + '/mock/mock.coffee', (err) ->
+          gs.close next
+      
           
   describe 'readfile', ->        
     it 'should read a file', (done) ->
@@ -58,16 +68,22 @@ describe 'mongo-vfs', ->
       stream = new Stream()
       mfs.mkfile '/bar', {stream}, (err, meta) ->
         done err if err
-        meta.should.have.property 'tmpPath'
-        meta.should.have.property 'stream'
-        meta.stream.emit 'end', ->
-          cursor = files.find 
-            filename: Path.basename meta.tmpPath
-            'metadata.path': Path.dirname meta.tmpPath
-          cursor.toArray (err, docs) ->
-            done err if err
-            docs.should.not.be.empty
-            done()
+        files.findOne
+          filename: 'bar'
+          'metadata.path': '/'
+        , (err, doc) ->
+          done err if err
+          doc.should.exist
+          done()
+      stream.emit 'data', 'Hello'
+      stream.emit 'end'
+  
+    it 'should reject if there is another file with the same name', (done) ->
+      stream = new Stream()
+      mfs.mkfile '/folder/bar', {stream}, (err, meta) ->
+        fn = -> throw err if err
+        fn.should.throw()
+        done()
       stream.emit 'data', 'Hello'
       stream.emit 'end'
   
@@ -92,15 +108,15 @@ describe 'mongo-vfs', ->
             done()  
             
     it 'should rename a directory', (done) ->
-      mfs.rename '/baz', {from:'/folder'}, (err) ->
+      mfs.rename '/baz/', {from:'/folder/'}, (err) ->
         done err if err
-        # Now there should be /baz file
+        # Now there should be file in /baz
         cursor = files.find 
           'metadata.path': '/baz'
         cursor.toArray (err, docs) ->
           done err if err
           docs.should.not.be.empty
-          # ... and /folder/bar should be gone
+          # ... and /folder/ should be gone
           cursor = files.find 
             filename: 'bar'
             'metadata.path': '/folder'
@@ -109,7 +125,63 @@ describe 'mongo-vfs', ->
             docs.should.be.empty
             done()  
   
-  # describe 'readdir', ->
-  #   it 'should list all files and folders in directory', (done) ->
-  #     mfs.readdir
-
+  describe 'readdir', ->
+    it 'should list all files and folders in directory', (done) ->
+      mfs.readdir '/folder/', {}, (err, meta) ->
+        done err if err
+        meta.should.have.property 'stream'
+        stream = meta.stream
+        data = []
+        stream.on 'data', (chunk) -> data.push chunk
+        stream.on 'end', ->
+          data[0].should.be.a 'object'
+          data[0].should.have.property 'name'
+          data[0].should.have.property 'mime'
+          data[0].should.have.property 'path'
+          data[0].should.have.property 'size'
+          done()
+          
+  describe 'stat', ->
+    it 'should return stat of a file', (done) ->
+      mfs.stat '/folder/bar', {}, (err, meta) ->
+        done err if err
+        meta.should.be.a 'object'
+        meta.should.have.property 'name', 'bar'
+        meta.should.have.property 'mime'
+        meta.should.have.property 'path', '/folder'
+        meta.should.have.property 'size'
+        done()
+          
+    it 'should return stat of a directory', (done) ->
+      mfs.stat '/folder/', {}, (err, meta) ->
+        done err if err
+        meta.should.be.a 'object'
+        meta.should.have.property 'name', 'folder'
+        meta.should.have.property 'mime', 'inode/directory'
+        meta.should.have.property 'path', '/'
+        meta.should.have.property 'size', 1
+        done()
+          
+    it 'should return error if the file or directory doesnt exist', (done) ->
+      mfs.stat '/foobar', {}, (err, meta) ->
+        fn = -> throw err if err
+        fn.should.throw()
+        done()
+  
+  describe 'copy', ->
+    it 'should create copy of existing file', (done) ->
+      mfs.copy '/folder/bar_copy', {from: '/mock.coffee'}, (err, meta) ->
+        done err if err
+        files.findOne
+          filename: 'bar_copy'
+          'metadata.path': '/folder'
+        , (err, doc) ->
+          done err if err
+          doc.should.exist
+          doc.should.be.a 'object'
+          doc.should.have.property 'filename', 'bar_copy'
+          doc.should.have.property 'metadata'
+          doc.metadata.should.have.property 'path', '/folder'
+          doc.should.have.property 'contentType', 'application/coffee'
+          done()
+          

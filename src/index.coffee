@@ -38,9 +38,7 @@ module.exports = setup = (options, cb) ->
     mongofs.readfile path, options, callback  
   
   readdir = (path, options, callback) ->
-    console.log options
-    console.log path
-    mongofs.readdir path, callback
+    mongofs.readdir path, options, callback
         
   vfs = 
     stat: stat
