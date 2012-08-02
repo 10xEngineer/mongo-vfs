@@ -2,6 +2,7 @@ MongoFS     = require '../src/mongofs'
 mongodb     = require 'mongodb'
 Stream      = require 'stream'
 Path        = require 'path'
+async       = require 'async'
 assert      = require 'assert'
 Db          = mongodb.Db
 Server      = mongodb.Server
@@ -30,11 +31,18 @@ describe 'mongo-vfs', ->
     server = new Server credentials.host, credentials.port, {}
     db = new Db credentials.database, server
     db.open (err, db) ->
-      files = db.collection 'fs.files'
-      chunks = db.collection 'fs.chunks'
-      files.remove()
-      chunks.remove()
-      addFile -> addCoffeeFile done
+      async.parallel [
+        (next) -> 
+          db.collection 'fs.files', (err, _files) ->
+            files = _files
+            files.remove next
+        (next) -> 
+          db.collection 'fs.chunks', (err, _chunks) ->
+            chunks = _chunks
+            chunks.remove next
+        addFile
+        addCoffeeFile
+      ], done
     addFile = (next) ->
       gs = new GridStore db, 'bar', 'w', 
         metadata: 
@@ -185,3 +193,29 @@ describe 'mongo-vfs', ->
           doc.should.have.property 'contentType', 'application/coffee'
           done()
           
+  describe 'rmfile', ->
+    it 'should remove file', (done) ->
+      # Find the file to retrieve _id
+      files.findOne
+        filename: 'bar'
+        'metadata.path': '/folder'
+      , (err, doc) ->
+        done err if err
+        # Remove the file
+        mfs.rmfile '/folder/bar', {}, (err) ->
+          done err if err
+          # No chunks connected to the file
+          chunks.find
+            files_id: doc._id
+          .toArray (err, docs) -> 
+            done err if err
+            docs.should.be.empty
+            # The file itself should be gone
+            files.findOne
+              filename: 'bar'
+              'metadata.path': '/folder'
+            , (err, doc) ->
+              assert.equal doc, null
+              done()
+        
+    

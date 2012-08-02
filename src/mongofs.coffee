@@ -177,5 +177,21 @@ class MongoFS
         cb null, createStatEntry doc
         
     searchForFile()
+  
+  rmfile: (path, options, cb) ->
+    [dir, base] = extractName path
+    # Find the file
+    files.findOne
+      filename: base
+      'metadata.path': dir
+    , (err, doc) ->
+      return cb err if err
+      # Remove chunks
+      chunks.remove files_id: doc._id, (err) ->
+        return cb err if err
+        # Remove file itself
+        files.remove _id: doc._id, (err) ->
+          return cb err if err
+          cb()
     
 module.exports = MongoFS
