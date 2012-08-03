@@ -42,7 +42,8 @@ describe 'mongo-vfs', ->
             chunks.remove next
         addFile '/folder', 'bar'
         addFile '/folder', 'bar2'
-        addDirectory
+        addDirectory '/folder/folder2'
+        addDirectory '/empty'
         addCoffeeFile
       ], done
     addFile = (path, filename) ->
@@ -53,12 +54,13 @@ describe 'mongo-vfs', ->
         gs.open (err) ->
           gs.write 'foo', (err) ->
             gs.close next
-    addDirectory = (next) ->
-      gs = new GridStore db, '.empty', 'w', 
-        metadata: 
-          path: '/empty'
-      gs.open (err) ->
-        gs.close next
+    addDirectory = (path) ->
+      (next) -> 
+        gs = new GridStore db, '.empty', 'w', 
+          metadata: 
+            path: path
+        gs.open (err) ->
+          gs.close next
     addCoffeeFile = (next) ->      
       gs = new GridStore db, 'mock.coffee', 'w', 
         metadata: 
@@ -192,7 +194,7 @@ describe 'mongo-vfs', ->
         meta.should.have.property 'name', 'folder'
         meta.should.have.property 'mime', 'inode/directory'
         meta.should.have.property 'path', '/'
-        meta.should.have.property 'size', 2
+        meta.should.have.property 'size', 3
         done()
           
     it 'should return error if the file or directory doesnt exist', (done) ->
@@ -259,7 +261,7 @@ describe 'mongo-vfs', ->
         fn = -> throw err if err
         fn.should.throw(/not empty$/)
         files.find
-          'metadata.path': '/folder'
+          'metadata.path': /^\/folder/
         .toArray (err, docs) ->
           done err if err
           docs.should.not.be.empty
@@ -269,7 +271,7 @@ describe 'mongo-vfs', ->
       mfs.rmdir '/folder', {recursive: true}, (err, meta) ->
         done err if err
         files.findOne
-          'metadata.path': '/folder'
+          'metadata.path': /^\/folder/
         , (err, doc) ->
           done err if err
           assert.equal doc, null

@@ -41,7 +41,7 @@ class MongoFS
     folder: (path, cb = ->) ->
       [dir, base] = extractName path = stripTrailingSlash path
       files.find
-        'metadata.path': path
+        'metadata.path': new RegExp '^' + path
       .toArray (err, docs) ->
         return cb err if err
         unless _.isEmpty docs
@@ -122,12 +122,14 @@ class MongoFS
           else
             that.rename path, {from: "#{dir}/#{temp}"}, (err) ->
               cb err, meta
+          # end of rename
         gs.close rename     
       readable.removeListener 'data', onData
       readable.removeListener 'end', onEnd
       _.forEach buffer, (event) ->
         readable.emit.apply readable, event
-  
+      # end of gs.open
+    # end of mkfile
   mkdir: (path, options, cb) ->
     path = stripTrailingSlash path
     files.findOne
@@ -139,14 +141,14 @@ class MongoFS
       stream.readable = true
       @mkfile path + '/.empty', {stream}, cb
       stream.emit 'end'
-  
+    # end of mkdir
   copy: (path, options, cb) ->
     meta = {}
     @readfile options.from, {}, (err, readMeta) =>
       return cb err if err
       @mkfile path, readMeta, (err, writeMeta) ->
         cb err, meta
-        
+    # end of copy
   rename: (path, options, cb) ->
     from = extractName (options.from = stripTrailingSlash options.from)
     to = extractName (path = stripTrailingSlash path)
@@ -205,12 +207,14 @@ class MongoFS
         return cb err if err
         # Note: mongodb.remove() sometimes fire up callback, but docs
         # are still in database, therefore defer (aka setTimeout 0)
-        # to postpone next action
+        # to postpone next action 343
         _.defer ->      
           # Remove chunks
           chunks.remove files_id: doc._id, (err) ->
             return cb err if err
             _.defer cb
+        # end of files.remove callback
+      # end of findOne callback
   
   rmdir: (path, options = {}, cb) ->
     path = stripTrailingSlash path
@@ -224,9 +228,11 @@ class MongoFS
         (docs[0].length is 0)
       if options.recursive or empty
         files.remove
-          'metadata.path': path
+          'metadata.path': new RegExp '^' + path
         , (err) -> _.defer cb, err
       else
         cb new Error 'Directory is not empty'
+        
+  # End of public API
   
 module.exports = MongoFS
