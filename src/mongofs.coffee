@@ -98,6 +98,7 @@ class MongoFS
     that = this
     [dir, base] = extractName path
     buffer = []
+    meta = {}
     (readable = options.stream).on 'data', onData = (chunk) ->
       buffer.push ['data', chunk]
     readable.on 'end', onEnd = ->
@@ -120,12 +121,24 @@ class MongoFS
             cb new Error 'File already exists'          
           else
             that.rename path, {from: "#{dir}/#{temp}"}, (err) ->
-              cb err, {}
+              cb err, meta
         gs.close rename     
       readable.removeListener 'data', onData
       readable.removeListener 'end', onEnd
       _.forEach buffer, (event) ->
         readable.emit.apply readable, event
+  
+  mkdir: (path, options, cb) ->
+    path = stripTrailingSlash path
+    files.findOne
+      'metadata.path': path
+    , (err, doc) =>
+      return cb err if err
+      return cb new Error 'Directory already exists' if doc    
+      stream = new Stream()
+      stream.readable = true
+      @mkfile path + '/.empty', {stream}, cb
+      stream.emit 'end'
   
   copy: (path, options, cb) ->
     meta = {}
@@ -152,12 +165,13 @@ class MongoFS
     , next # end of renameFile
     
     # Rename folder
-    renameFolder = (next) -> files.findAndModify 
+    renameFolder = (next) -> files.update 
       'metadata.path': options.from
-    , []
     , $set: 
       'metadata.path': path
-    , {}
+    , 
+      multi : true
+      safe  : true
     , next # end of renameFolder
     
     async.parallel [renameFile, renameFolder], cb # end of rename
@@ -186,12 +200,33 @@ class MongoFS
       'metadata.path': dir
     , (err, doc) ->
       return cb err if err
-      # Remove chunks
-      chunks.remove files_id: doc._id, (err) ->
+      # Remove file itself
+      files.remove _id: doc._id, (err) ->
         return cb err if err
-        # Remove file itself
-        files.remove _id: doc._id, (err) ->
-          return cb err if err
-          cb()
-    
+        # Note: mongodb.remove() sometimes fire up callback, but docs
+        # are still in database, therefore defer (aka setTimeout 0)
+        # to postpone next action
+        _.defer ->      
+          # Remove chunks
+          chunks.remove files_id: doc._id, (err) ->
+            return cb err if err
+            _.defer cb
+  
+  rmdir: (path, options = {}, cb) ->
+    path = stripTrailingSlash path
+    options.recursive ?= false
+    files.find
+      'metadata.path': path
+    .toArray (err, docs) ->
+      empty = 
+        (docs.length is 1) && 
+        (docs[0].filename is '.empty') &&
+        (docs[0].length is 0)
+      if options.recursive or empty
+        files.remove
+          'metadata.path': path
+        , (err) -> _.defer cb, err
+      else
+        cb new Error 'Directory is not empty'
+  
 module.exports = MongoFS

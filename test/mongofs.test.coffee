@@ -40,16 +40,25 @@ describe 'mongo-vfs', ->
           db.collection 'fs.chunks', (err, _chunks) ->
             chunks = _chunks
             chunks.remove next
-        addFile
+        addFile '/folder', 'bar'
+        addFile '/folder', 'bar2'
+        addDirectory
         addCoffeeFile
       ], done
-    addFile = (next) ->
-      gs = new GridStore db, 'bar', 'w', 
+    addFile = (path, filename) ->
+      (next) ->
+        gs = new GridStore db, filename, 'w', 
+          metadata: 
+            path: path
+        gs.open (err) ->
+          gs.write 'foo', (err) ->
+            gs.close next
+    addDirectory = (next) ->
+      gs = new GridStore db, '.empty', 'w', 
         metadata: 
-          path: '/folder'
+          path: '/empty'
       gs.open (err) ->
-        gs.write 'foo', (err) ->
-          gs.close next
+        gs.close next
     addCoffeeFile = (next) ->      
       gs = new GridStore db, 'mock.coffee', 'w', 
         metadata: 
@@ -90,11 +99,28 @@ describe 'mongo-vfs', ->
       stream = new Stream()
       mfs.mkfile '/folder/bar', {stream}, (err, meta) ->
         fn = -> throw err if err
-        fn.should.throw()
+        fn.should.throw(/^File/)
         done()
       stream.emit 'data', 'Hello'
       stream.emit 'end'
   
+  describe 'mkdir', ->
+    it 'should create .empty file in new directory', (done) ->
+      mfs.mkdir '/folder2', {}, (err, meta) ->
+        done err if err
+        files.findOne
+          'metadata.path': '/folder2'
+        , (err, doc) ->
+          done err if err
+          doc.should.exist
+          done()
+        
+    it 'should reject if there already is directory with the same name', (done) ->
+      mfs.mkdir '/folder', {}, (err, meta) ->
+        fn = -> throw err if err
+        fn.should.throw(/^Directory/)
+        done()
+        
   describe 'rename', ->
     it 'should rename a file', (done) ->
       mfs.rename '/baz', {from:'/folder/bar'}, (err) ->
@@ -125,10 +151,9 @@ describe 'mongo-vfs', ->
           done err if err
           docs.should.not.be.empty
           # ... and /folder/ should be gone
-          cursor = files.find 
-            filename: 'bar'
+          files.find 
             'metadata.path': '/folder'
-          cursor.toArray (err, docs) ->
+          .toArray (err, docs) ->
             done err if err
             docs.should.be.empty
             done()  
@@ -167,7 +192,7 @@ describe 'mongo-vfs', ->
         meta.should.have.property 'name', 'folder'
         meta.should.have.property 'mime', 'inode/directory'
         meta.should.have.property 'path', '/'
-        meta.should.have.property 'size', 1
+        meta.should.have.property 'size', 2
         done()
           
     it 'should return error if the file or directory doesnt exist', (done) ->
@@ -217,5 +242,37 @@ describe 'mongo-vfs', ->
             , (err, doc) ->
               assert.equal doc, null
               done()
+              
+  describe 'rmdir', ->
+    it 'should remove empty directory', (done) ->
+      mfs.rmdir '/empty', {}, (err, meta) ->
+        done err if err
+        files.findOne
+          'metadata.path': '/empty'
+        , (err, doc) ->
+          done err if err
+          assert.equal doc, null
+          done()
+      
+    it 'should not remove directory with files', (done) ->
+      mfs.rmdir '/folder', {}, (err, meta) ->
+        fn = -> throw err if err
+        fn.should.throw(/not empty$/)
+        files.find
+          'metadata.path': '/folder'
+        .toArray (err, docs) ->
+          done err if err
+          docs.should.not.be.empty
+          done()
         
+    it 'should remove directory with files when recursive flag is true', (done) ->
+      mfs.rmdir '/folder', {recursive: true}, (err, meta) ->
+        done err if err
+        files.findOne
+          'metadata.path': '/folder'
+        , (err, doc) ->
+          done err if err
+          assert.equal doc, null
+          done()
+      
     

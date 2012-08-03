@@ -14,5 +14,12 @@ auto-test:
 		--compilers coffee:coffee-script \
 		test/*.coffee
 	
+coffee-test: 
+	@NODE_ENV=test \
+	./node_modules/.bin/mocha \
+		--reporter $(REPORTER) \
+		--compilers coffee:coffee-script \
+		test/*.coffee
+	
 
 .PHONY: test
