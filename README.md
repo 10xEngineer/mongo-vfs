@@ -5,5 +5,14 @@
 * Path support
 * ???
 
+## Start
+
+	coffee src/server.coffee
+
+## Tests
+Run
+
+	make coffee-test
+
 ## License
 MIT

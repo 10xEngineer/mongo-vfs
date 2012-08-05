@@ -32,7 +32,7 @@ describe 'mongo-vfs', ->
     server = new Server credentials.host, credentials.port, {}
     db = new Db credentials.database, server
     db.open (err, db) ->
-      async.parallel [
+      async.series [
         (next) -> 
           db.collection 'fs.files', (err, _files) ->
             files = _files
@@ -41,11 +41,9 @@ describe 'mongo-vfs', ->
           db.collection 'fs.chunks', (err, _chunks) ->
             chunks = _chunks
             chunks.remove (err) -> _.defer next, err
-        addDirectory '/folder'
         addFile '/folder', 'bar'
         addFile '/folder', 'bar2'
         addDirectory '/folder/folder2'
-        addDirectory '/empty'
         addCoffeeFile
       ], done
     addFile = (path, filename, content = 'foo') ->
@@ -120,7 +118,7 @@ describe 'mongo-vfs', ->
           done()
         
     it 'should reject if there already is directory with the same name', (done) ->
-      mfs.mkdir '/folder', {}, (err, meta) ->
+      mfs.mkdir '/folder/folder2', {}, (err, meta) ->
         fn = -> throw err if err
         fn.should.throw(/^Directory/)
         done()
@@ -251,10 +249,10 @@ describe 'mongo-vfs', ->
               
   describe 'rmdir', ->
     it 'should remove empty directory', (done) ->
-      mfs.rmdir '/empty', {}, (err, meta) ->
+      mfs.rmdir '/folder/folder2/', {}, (err, meta) ->
         return done err if err
         files.findOne
-          'metadata.path': '/empty'
+          'metadata.path': '/folder/folder2'
         , (err, doc) ->
           return done err if err
           assert.equal doc, null
