@@ -17,14 +17,18 @@ class MongoFS
   # Private functions
   extractName = (path) -> [ Path.dirname(path), Path.basename path ]
   stripTrailingSlash = (path) ->
-    path = path.slice 0, -1 if path.charAt(path.length - 1) is '/'
+    if (path.length isnt 1) and path.charAt(path.length - 1) is '/'
+      path = path.slice 0, -1 
     path
-  isFolder = (path) -> path.charAt(path.length - 1) is '/'
+  addTrailingSlash = (path) -> 
+    path += '/' unless path.charAt(path.length - 1) is '/'
+    path
   createStatEntry = (doc) ->
+    href = addTrailingSlash(doc.metadata.path) + doc.filename
     name: doc.filename
     mime: doc.contentType
-    path: doc.metadata.path
-    href: stripTrailingSlash(doc.metadata.path) + "/" + doc.filename
+    path: stripTrailingSlash doc.metadata.path
+    href: href
     size: doc.length
   exist = 
     file: (path, cb = ->) ->
@@ -39,20 +43,44 @@ class MongoFS
         else
           cb()
     folder: (path, cb = ->) ->
-      [dir, base] = extractName path = stripTrailingSlash path
-      files.find
-        'metadata.path': new RegExp '^' + path
-      .toArray (err, docs) ->
+      [dir, base] = extractName stripTrailingSlash path
+      iterateThroughFolder path, (err, docs) ->
         return cb err if err
-        unless _.isEmpty docs
-          cb null, 
-            filename    : base
-            length      : docs.length
-            contentType : 'inode/directory'
-            metadata:
-              path: dir
-        else
-          cb()
+        res = 
+          filename    : base
+          contentType : 'inode/directory'
+          length      : docs.length
+          metadata:
+            path: dir
+        cb null, res
+  iterateThroughFolder = (path, cb = ->) ->
+    [dir, base] = extractName path = stripTrailingSlash path
+    subFiles = (next) ->
+      # Don't count .empty file
+      files.find
+        filename: $ne: '.empty'
+        'metadata.path': path
+      .toArray next
+    subFolders = (next) ->
+      files.find
+        filename: '.empty'
+        'metadata.path': new RegExp "^#{addTrailingSlash path}\\w+$"
+      .toArray (err, docs) ->
+        return next err if err
+        if _.isArray(docs) and not _.isEmpty docs
+          docs = _.uniq docs, false, (doc) -> doc.metadata.path
+          docs = _.map docs, (doc) ->
+            [dir, base] = extractName doc.metadata.path
+            doc.filename = base
+            doc.metadata.path = dir
+            doc.contentType = 'inode/directory'
+            doc
+        next null, docs
+      # end of subFolders
+    async.parallel [subFiles, subFolders], (err, results) ->
+      return cb err if err
+      cb null, Array.prototype.concat.apply [], results
+    
   # end of private functions
   
   # Public API
@@ -69,10 +97,22 @@ class MongoFS
     stream = new Stream()
     stream.readable = true
     cb null, {stream}
-    files.find('metadata.path': stripTrailingSlash path).each (err, doc) ->
-      return stream.emit 'error' if err
-      return stream.emit 'end' unless doc
-      stream.emit 'data', createStatEntry doc
+    iterateThroughFolder path, (err, docs) ->
+      return stream.emit 'error', err if err
+      iterator = (doc, next) ->
+        createStatsAndEmit = ->
+          stream.emit 'data', createStatEntry doc
+          next()
+        if doc.contentType is 'inode/directory'
+          subFolderPath = addTrailingSlash(doc.metadata.path) + doc.filename
+          exist.folder subFolderPath, (err, _doc) ->
+            doc = _doc
+            createStatsAndEmit()
+        else
+          createStatsAndEmit()
+      async.forEach docs, iterator, (err) ->
+        return stream.emit 'error', err if err
+        stream.emit 'end'
   readfile: (path, options, cb) ->
     [dir, base] = extractName path
     stream = new Stream()
@@ -131,15 +171,16 @@ class MongoFS
       # end of gs.open
     # end of mkfile
   mkdir: (path, options, cb) ->
-    path = stripTrailingSlash path
-    files.findOne
-      'metadata.path': path
-    , (err, doc) =>
+    [dir, base] = extractName path = stripTrailingSlash path
+    iterateThroughFolder dir, (err, docs) =>
       return cb err if err
-      return cb new Error 'Directory already exists' if doc    
+      return cb new Error "Directory #{dir} doesnt exist" if _.isEmpty docs
+      if _.any(docs, (doc) -> 
+        (doc.contentType is 'inode/directory') and doc.filename is base)
+        return cb new Error "Directory #{path} already exists"
       stream = new Stream()
       stream.readable = true
-      @mkfile path + '/.empty', {stream}, cb
+      @mkfile addTrailingSlash(path) + '.empty', {stream}, cb
       stream.emit 'end'
     # end of mkdir
   copy: (path, options, cb) ->
@@ -161,8 +202,8 @@ class MongoFS
     , []
     # name it properly
     , $set: 
-      filename: to[1]
-      'metadata.path': to[0]
+        filename: to[1]
+        'metadata.path': to[0]
     , {}
     , next # end of renameFile
     
@@ -170,7 +211,7 @@ class MongoFS
     renameFolder = (next) -> files.update 
       'metadata.path': options.from
     , $set: 
-      'metadata.path': path
+        'metadata.path': path
     , 
       multi : true
       safe  : true
@@ -181,7 +222,7 @@ class MongoFS
   stat: (path, options, cb) ->
     searchForDir = -> exist.folder path, (err, dir) ->
       return cb err if err
-      unless dir
+      unless dir.length > 0
         cb new Error 'File does not exist'
       else
         cb null, createStatEntry dir

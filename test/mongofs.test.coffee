@@ -4,6 +4,7 @@ Stream      = require 'stream'
 Path        = require 'path'
 async       = require 'async'
 assert      = require 'assert'
+_           = require 'underscore'
 Db          = mongodb.Db
 Server      = mongodb.Server
 Connection  = mongodb.Connection
@@ -35,24 +36,25 @@ describe 'mongo-vfs', ->
         (next) -> 
           db.collection 'fs.files', (err, _files) ->
             files = _files
-            files.remove next
+            files.remove (err) -> _.defer next, err
         (next) -> 
           db.collection 'fs.chunks', (err, _chunks) ->
             chunks = _chunks
-            chunks.remove next
+            chunks.remove (err) -> _.defer next, err
+        addDirectory '/folder'
         addFile '/folder', 'bar'
         addFile '/folder', 'bar2'
         addDirectory '/folder/folder2'
         addDirectory '/empty'
         addCoffeeFile
       ], done
-    addFile = (path, filename) ->
+    addFile = (path, filename, content = 'foo') ->
       (next) ->
         gs = new GridStore db, filename, 'w', 
           metadata: 
             path: path
         gs.open (err) ->
-          gs.write 'foo', (err) ->
+          gs.write content, (err) ->
             gs.close next
     addDirectory = (path) ->
       (next) -> 
@@ -74,7 +76,7 @@ describe 'mongo-vfs', ->
   describe 'readfile', ->        
     it 'should read a file', (done) ->
       mfs.readfile '/folder/bar', {}, (err, meta) ->
-        done err if err
+        return done err if err
         data = []
         meta.stream.on 'data', (chunk) ->
           data.push chunk
@@ -86,7 +88,7 @@ describe 'mongo-vfs', ->
     it 'should create a new temp file and return stream to it', (done) ->
       stream = new Stream()
       mfs.mkfile '/bar', {stream}, (err, meta) ->
-        done err if err
+        return done err if err
         files.findOne
           filename: 'bar'
           'metadata.path': '/'
@@ -109,7 +111,7 @@ describe 'mongo-vfs', ->
   describe 'mkdir', ->
     it 'should create .empty file in new directory', (done) ->
       mfs.mkdir '/folder2', {}, (err, meta) ->
-        done err if err
+        return done err if err
         files.findOne
           'metadata.path': '/folder2'
         , (err, doc) ->
@@ -126,31 +128,31 @@ describe 'mongo-vfs', ->
   describe 'rename', ->
     it 'should rename a file', (done) ->
       mfs.rename '/baz', {from:'/folder/bar'}, (err) ->
-        done err if err
+        return done err if err
         # Now there should be /baz file
         cursor = files.find 
           filename: 'baz'
           'metadata.path': '/'
         cursor.toArray (err, docs) ->
-          done err if err
+          return done err if err
           docs.should.not.be.empty
           # ... and /folder/bar should be gone
           cursor = files.find 
             filename: 'bar'
             'metadata.path': '/folder'
           cursor.toArray (err, docs) ->
-            done err if err
+            return done err if err
             docs.should.be.empty
             done()  
             
     it 'should rename a directory', (done) ->
       mfs.rename '/baz/', {from:'/folder/'}, (err) ->
-        done err if err
+        return done err if err
         # Now there should be file in /baz
         cursor = files.find 
           'metadata.path': '/baz'
         cursor.toArray (err, docs) ->
-          done err if err
+          return done err if err
           docs.should.not.be.empty
           # ... and /folder/ should be gone
           files.find 
@@ -163,7 +165,7 @@ describe 'mongo-vfs', ->
   describe 'readdir', ->
     it 'should list all files and folders in directory', (done) ->
       mfs.readdir '/folder/', {}, (err, meta) ->
-        done err if err
+        return done err if err
         meta.should.have.property 'stream'
         stream = meta.stream
         data = []
@@ -174,12 +176,13 @@ describe 'mongo-vfs', ->
           data[0].should.have.property 'mime'
           data[0].should.have.property 'path'
           data[0].should.have.property 'size'
+          data.should.have.length 3
           done()
           
   describe 'stat', ->
     it 'should return stat of a file', (done) ->
       mfs.stat '/folder/bar', {}, (err, meta) ->
-        done err if err
+        return done err if err
         meta.should.be.a 'object'
         meta.should.have.property 'name', 'bar'
         meta.should.have.property 'mime'
@@ -189,7 +192,7 @@ describe 'mongo-vfs', ->
           
     it 'should return stat of a directory', (done) ->
       mfs.stat '/folder/', {}, (err, meta) ->
-        done err if err
+        return done err if err
         meta.should.be.a 'object'
         meta.should.have.property 'name', 'folder'
         meta.should.have.property 'mime', 'inode/directory'
@@ -206,12 +209,12 @@ describe 'mongo-vfs', ->
   describe 'copy', ->
     it 'should create copy of existing file', (done) ->
       mfs.copy '/folder/bar_copy', {from: '/mock.coffee'}, (err, meta) ->
-        done err if err
+        return done err if err
         files.findOne
           filename: 'bar_copy'
           'metadata.path': '/folder'
         , (err, doc) ->
-          done err if err
+          return done err if err
           doc.should.exist
           doc.should.be.a 'object'
           doc.should.have.property 'filename', 'bar_copy'
@@ -227,32 +230,33 @@ describe 'mongo-vfs', ->
         filename: 'bar'
         'metadata.path': '/folder'
       , (err, doc) ->
-        done err if err
+        return done err if err
         # Remove the file
         mfs.rmfile '/folder/bar', {}, (err) ->
-          done err if err
+          return done err if err
           # No chunks connected to the file
           chunks.find
             files_id: doc._id
           .toArray (err, docs) -> 
-            done err if err
+            return done err if err
             docs.should.be.empty
             # The file itself should be gone
             files.findOne
               filename: 'bar'
               'metadata.path': '/folder'
             , (err, doc) ->
+              return done err if err
               assert.equal doc, null
               done()
               
   describe 'rmdir', ->
     it 'should remove empty directory', (done) ->
       mfs.rmdir '/empty', {}, (err, meta) ->
-        done err if err
+        return done err if err
         files.findOne
           'metadata.path': '/empty'
         , (err, doc) ->
-          done err if err
+          return done err if err
           assert.equal doc, null
           done()
       
@@ -263,7 +267,7 @@ describe 'mongo-vfs', ->
         files.find
           'metadata.path': /^\/folder/
         .toArray (err, docs) ->
-          done err if err
+          return done err if err
           docs.should.not.be.empty
           done()
         
@@ -273,7 +277,7 @@ describe 'mongo-vfs', ->
         files.findOne
           'metadata.path': /^\/folder/
         , (err, doc) ->
-          done err if err
+          return done err if err
           assert.equal doc, null
           done()
       
