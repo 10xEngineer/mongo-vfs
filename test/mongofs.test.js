@@ -26,6 +26,7 @@
 
   describe('mongo-vfs', function() {
     var chunks, credentials, db, files, mfs;
+    var options;
     credentials = {
       database: 'mongofs_test',
       host: 'localhost',
@@ -41,6 +42,10 @@
     });
     beforeEach(function(done) {
       var addCoffeeFile, addDirectory, addFile, server;
+      options = {
+        bucketId: 'test'
+      };
+
       server = new Server(credentials.host, credentials.port, {});
       db = new Db(credentials.database, server);
       db.open(function(err, db) {
@@ -70,7 +75,8 @@
           var gs;
           gs = new GridStore(db, filename, 'w', {
             metadata: {
-              path: path
+              path: path,
+              bucket: 'test'
             }
           });
           return gs.open(function(err) {
@@ -85,7 +91,8 @@
           var gs;
           gs = new GridStore(db, '.empty', 'w', {
             metadata: {
-              path: path
+              path: path,
+              bucket: 'test'
             }
           });
           return gs.open(function(err) {
@@ -97,7 +104,8 @@
         var gs;
         gs = new GridStore(db, 'mock.coffee', 'w', {
           metadata: {
-            path: '/'
+            path: '/',
+            bucket: 'test'
           },
           content_type: 'application/coffee'
         });
@@ -110,7 +118,7 @@
     });
     describe('readfile', function() {
       return it('should read a file', function(done) {
-        return mfs.readfile('/folder/bar', {}, function(err, meta) {
+        return mfs.readfile('/folder/bar', options, function(err, meta) {
           var data;
           if (err) {
             return done(err);
@@ -128,17 +136,15 @@
     });
     describe('mkfile', function() {
       it('should create a new temp file and return stream to it', function(done) {
-        var stream;
-        stream = new Stream();
-        mfs.mkfile('/bar', {
-          stream: stream
-        }, function(err, meta) {
+        var stream = options.stream = new Stream();
+        mfs.mkfile('/bar', options, function(err, meta) {
           if (err) {
             return done(err);
           }
           return files.findOne({
             filename: 'bar',
-            'metadata.path': '/'
+            'metadata.path': '/',
+            'metadata.bucket': options.bucketId
           }, function(err, doc) {
             if (err) {
               done(err);
@@ -151,11 +157,8 @@
         return stream.emit('end');
       });
       return it('should reject if there is another file with the same name', function(done) {
-        var stream;
-        stream = new Stream();
-        mfs.mkfile('/folder/bar', {
-          stream: stream
-        }, function(err, meta) {
+        var stream = options.stream = new Stream();
+        mfs.mkfile('/folder/bar', options, function(err, meta) {
           var fn;
           fn = function() {
             if (err) {
@@ -171,7 +174,7 @@
     });
     describe('mkdir', function() {
       it('should create .empty file in new directory', function(done) {
-        return mfs.mkdir('/folder2', {}, function(err, meta) {
+        return mfs.mkdir('/folder2', options, function(err, meta) {
           if (err) {
             return done(err);
           }
@@ -187,7 +190,7 @@
         });
       });
       return it('should reject if there already is directory with the same name', function(done) {
-        return mfs.mkdir('/folder/folder2', {}, function(err, meta) {
+        return mfs.mkdir('/folder/folder2', options, function(err, meta) {
           var fn;
           fn = function() {
             if (err) {
@@ -201,16 +204,16 @@
     });
     describe('rename', function() {
       it('should rename a file', function(done) {
-        return mfs.rename('/baz', {
-          from: '/folder/bar'
-        }, function(err) {
+        options.from = '/folder/bar';
+        return mfs.rename('/baz', options, function(err) {
           var cursor;
           if (err) {
             return done(err);
           }
           cursor = files.find({
             filename: 'baz',
-            'metadata.path': '/'
+            'metadata.path': '/',
+            'metadata.bucket': options.bucketId
           });
           return cursor.toArray(function(err, docs) {
             if (err) {
@@ -219,7 +222,8 @@
             docs.should.not.be.empty;
             cursor = files.find({
               filename: 'bar',
-              'metadata.path': '/folder'
+              'metadata.path': '/folder',
+              'metadata.bucket': options.bucketId
             });
             return cursor.toArray(function(err, docs) {
               if (err) {
@@ -232,9 +236,8 @@
         });
       });
       return it('should rename a directory', function(done) {
-        return mfs.rename('/baz/', {
-          from: '/folder/'
-        }, function(err) {
+        options.from = '/folder/';
+        return mfs.rename('/baz/', options, function(err) {
           var cursor;
           if (err) {
             return done(err);
@@ -262,7 +265,7 @@
     });
     describe('readdir', function() {
       return it('should list all files and folders in directory', function(done) {
-        return mfs.readdir('/folder/', {}, function(err, meta) {
+        return mfs.readdir('/folder/', options, function(err, meta) {
           var data, stream;
           if (err) {
             return done(err);
@@ -287,7 +290,7 @@
     });
     describe('stat', function() {
       it('should return stat of a file', function(done) {
-        return mfs.stat('/folder/bar', {}, function(err, meta) {
+        return mfs.stat('/folder/bar', options, function(err, meta) {
           if (err) {
             return done(err);
           }
@@ -300,7 +303,7 @@
         });
       });
       it('should return stat of a directory', function(done) {
-        return mfs.stat('/folder/', {}, function(err, meta) {
+        return mfs.stat('/folder/', options, function(err, meta) {
           if (err) {
             return done(err);
           }
@@ -313,7 +316,7 @@
         });
       });
       return it('should return error if the file or directory doesnt exist', function(done) {
-        return mfs.stat('/foobar', {}, function(err, meta) {
+        return mfs.stat('/foobar', options, function(err, meta) {
           var fn;
           fn = function() {
             if (err) {
@@ -327,15 +330,15 @@
     });
     describe('copy', function() {
       return it('should create copy of existing file', function(done) {
-        return mfs.copy('/folder/bar_copy', {
-          from: '/mock.coffee'
-        }, function(err, meta) {
+        options.from = '/mock.coffee';
+        return mfs.copy('/folder/bar_copy', options, function(err, meta) {
           if (err) {
             return done(err);
           }
           return files.findOne({
             filename: 'bar_copy',
-            'metadata.path': '/folder'
+            'metadata.path': '/folder',
+            'metadata.bucket': options.bucketId
           }, function(err, doc) {
             if (err) {
               return done(err);
@@ -355,12 +358,13 @@
       return it('should remove file', function(done) {
         return files.findOne({
           filename: 'bar',
-          'metadata.path': '/folder'
+          'metadata.path': '/folder',
+          'metadata.bucket': options.bucketId
         }, function(err, doc) {
           if (err) {
             return done(err);
           }
-          return mfs.rmfile('/folder/bar', {}, function(err) {
+          return mfs.rmfile('/folder/bar', options, function(err) {
             if (err) {
               return done(err);
             }
@@ -373,7 +377,8 @@
               docs.should.be.empty;
               return files.findOne({
                 filename: 'bar',
-                'metadata.path': '/folder'
+                'metadata.path': '/folder',
+                'metadata.bucket': options.bucketId
               }, function(err, doc) {
                 if (err) {
                   return done(err);
@@ -388,7 +393,7 @@
     });
     return describe('rmdir', function() {
       it('should remove empty directory', function(done) {
-        return mfs.rmdir('/folder/folder2/', {}, function(err, meta) {
+        return mfs.rmdir('/folder/folder2/', options, function(err, meta) {
           if (err) {
             return done(err);
           }
@@ -404,7 +409,7 @@
         });
       });
       it('should not remove directory with files', function(done) {
-        return mfs.rmdir('/folder', {}, function(err, meta) {
+        return mfs.rmdir('/folder', options, function(err, meta) {
           var fn;
           fn = function() {
             if (err) {
@@ -424,9 +429,8 @@
         });
       });
       return it('should remove directory with files when recursive flag is true', function(done) {
-        return mfs.rmdir('/folder', {
-          recursive: true
-        }, function(err, meta) {
+        options.recursive = true;
+        return mfs.rmdir('/folder', options, function(err, meta) {
           if (err) {
             done(err);
           }
