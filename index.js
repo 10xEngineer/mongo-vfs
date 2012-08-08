@@ -1,5 +1,7 @@
-var MongoFS = require('./mongofs').MongoFS;
+var _ = require('underscore');
 
+var Connection = require('mongodb').Connection;
+var MongoFS = require("./lib/mongofs");
 
 // Simple type checking helper.
 function checkType(vars, callback) {
@@ -23,30 +25,92 @@ function checkType(vars, callback) {
   return true;
 }
 
-
 /*
  * @options can have:
- *   options.connString - MongoDB connection string (e.g. mongodb://localhost/)
+ *   options.host - database server host
+ *   options.port - database server port
  *   options.database - Database name
- *   options.bucketId - Bucket id
- *   options.bucketId - Bucket id
- *   options.bucketId - Bucket id
  */
-module.exports = function setup(options) {
+var setup = module.exports = function(options, cb) {
+  options = _.defaults(options, {
+    database: 'mongofs',
+    host: 'localhost',
+    port: Connection.DEFAULT_PORT
+  });
 
   var mongofs = new MongoFS(options);
-
-  var vfs = {
-    stat: stat
-  }
-
-  return vfs;
-
-  function stat(path, callback) {
+  
+  var stat = function(path, options, callback) {
     if (!checkType([
-      "path", path, "string"
-    ], callback)) return;
-
-    mongofs.getMetadata(path, callback);
-  }
+      {
+        name: 'path',
+        value: path,
+        val: _.isString
+      }
+    ], callback)) {
+      return;
+    }
+    return mongofs.getMetadata(path, callback);
+  };
+  var readfile = function(path, options, callback) {
+    return mongofs.readfile(path, options, callback);
+  };
+  var readdir = function(path, options, callback) {
+    return mongofs.readdir(path, options, callback);
+  };
+  var mkfile = function(path, options, callback) {
+    if (!checkType([
+      {
+        name: 'path',
+        value: path,
+        validator: _.isString
+      }, {
+        name: 'stream',
+        value: options.stream,
+        validator: _.isObject
+      }
+    ], callback)) {
+      return;
+    }
+    return mongofs.mkfile(path, options, callback);
+  };
+  var mkdir = function(path, options, callback) {
+    if (!checkType([
+      {
+        name: 'path',
+        value: path,
+        validator: _.isString
+      }
+    ], callback)) {
+      return;
+    }
+    return mongofs.mkdir(path, options, callback);
+  };
+  var rmdir = function(path, options, callback) {
+    if (!checkType([
+      {
+        name: 'path',
+        value: path,
+        validator: _.isString
+      }
+    ], callback)) {
+      return;
+    }
+    return mongofs.rmdir(path, options, callback);
+  };
+  
+  var vfs = {
+    stat: stat,
+    readfile: readfile,
+    readdir: readdir,
+    mkfile: mkfile,
+    mkdir: mkdir,
+    rmdir: rmdir,
+    close: mongofs.close
+  };
+  
+  return mongofs.open(function(err) {
+    return cb(err, vfs);
+  });
 };
+

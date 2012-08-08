@@ -2,7 +2,7 @@
 (function() {
   var Connection, Db, GridStore, MongoFS, Path, Server, Stream, assert, async, mongodb, _;
 
-  MongoFS = require('../src/mongofs');
+  MongoFS = require('../lib/mongofs');
 
   mongodb = require('mongodb');
 
@@ -36,7 +36,7 @@
     files = null;
     chunks = null;
     before(function(done) {
-      process.stdout.write('\u001B[2J\u001B[0;0f');
+      //process.stdout.write('\u001B[2J\u001B[0;0f');
       return mfs.open(done);
     });
     beforeEach(function(done) {

@@ -1,7 +1,19 @@
-var vfs = require('../index')({});
+var Connection = require('mongodb').Connection;
 
 describe('mongo-vfs', function() {
-  describe('should have fs mgmt. function', function() {
+  describe('should have fs mgmt. function', function(vfs) {
+    var vfs;
+    before(function(callback) {
+      require('../index')({
+        database: 'mongofs_test',
+        host: 'localhost',
+        port: Connection.DEFAULT_PORT
+      }, function(error, vfsObj) {
+        vfs = vfsObj;
+        callback();
+      });        
+    });
+
     it('readfile', function() {
       var type = typeof(vfs.readfile);
       type.should.equal('function');
@@ -38,21 +50,13 @@ describe('mongo-vfs', function() {
       var type = typeof(vfs.copy);
       type.should.equal('function');
     });
-    it('symlink', function() {
-      var type = typeof(vfs.symlink);
-      type.should.equal('function');
-    });
-    it('realpath', function() {
-      var type = typeof(vfs.realpath);
-      type.should.equal('function');
-    });
-    it('watch', function() {
-      var type = typeof(vfs.watch);
-      type.should.equal('function');
-    });
     it('changedSince', function() {
       var type = typeof(vfs.changedSince);
       type.should.equal('function');
+    });
+
+    after(function() {
+      vfs.close();
     });
   });
 });
