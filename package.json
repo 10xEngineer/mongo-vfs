@@ -11,6 +11,7 @@
     "mongodb",
     "gridfs"
   ],
+  "private": true,
   "license": "MIT",
   "dependencies": {
     "mongodb": "1.x",
