@@ -4,26 +4,25 @@ var Connection = require('mongodb').Connection;
 var MongoFS = require("./lib/mongofs");
 
 // Simple type checking helper.
-function checkType(vars, callback) {
-  if (typeof callback !== "function") {
-    throw new TypeError("Please pass in a function for the callback");
+var checkType = function(vars, callback) {
+  var errors, msg;
+  if (callback == null) {
+    callback = function() {};
   }
-  var errors = [];
-  for (var i = 0, l = vars.length; i < l; i += 3) {
-    var name = vars[i];
-    var value = vars[i + 1];
-    var expectedType = vars[i + 2];
-    var actualType = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
-    if (actualType !== expectedType) {
-      errors += "Expected " + name + " to be " + expectedType + " but was " + actualType;
-    }
-  }
+  errors = _.reject(vars, function(_var) {
+    var name, validator, value;
+    name = _var.name, value = _var.value, validator = _var.validator;
+    return validator(value);
+  });
   if (errors.length) {
-    callback (new TypeError(errors.join("\n")));
+    msg = (_.map(errors, function(err) {
+      return "'" + err.name + "' - " + (typeof err.value);
+    })).join('\n');
+    callback(new TypeError(msg));
     return false;
   }
   return true;
-}
+};
 
 /*
  * @options can have:
