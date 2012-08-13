@@ -235,32 +235,56 @@
           });
         });
       });
-      return it('should rename a directory', function(done) {
-        options.from = '/folder/';
-        return mfs.rename('/baz/', options, function(err) {
-          var cursor;
+      
+      it('should rename a directory', function(done) {
+        var stream = options.stream = new Stream();
+        mfs.mkfile('/folder', options, function(err) {
           if (err) {
             return done(err);
           }
-          cursor = files.find({
-            'metadata.path': '/baz'
-          });
-          return cursor.toArray(function(err, docs) {
+          delete options.stream;
+          options.from = '/folder/';
+          return mfs.rename('/baz/', options, function(err) {
+            var cursor;
             if (err) {
               return done(err);
             }
-            docs.should.not.be.empty;
-            return files.find({
-              'metadata.path': '/folder'
-            }).toArray(function(err, docs) {
+            cursor = files.find({
+              'metadata.path': '/baz'
+            });
+            return cursor.toArray(function(err, docs) {
               if (err) {
-                done(err);
+                return done(err);
               }
-              docs.should.be.empty;
-              return done();
+              docs.should.not.be.empty;
+              return files.find({
+                'metadata.path': '/folder'
+              }).toArray(function(err, docs) {
+                if (err) {
+                  done(err);
+                }
+                docs.should.be.empty;
+                files.find({
+                  filename: 'folder',
+                  'metadata.path': '/',
+                  'metadata.bucket': options.bucketId
+                }).toArray(function(err, docs) {
+                  docs.should.not.be.empty;
+                  files.find({
+                    fileName: 'baz',
+                    'metadata.path': '/',
+                    'metadata.bucket': options.bucketId
+                  }).toArray(function(err, docs) {
+                    docs.should.be.empty;
+                    return done();
+                  });
+                });
+              });
             });
           });
         });
+        stream.emit('data', 'Hello');
+        return stream.emit('end');
       });
     });
     describe('readdir', function() {

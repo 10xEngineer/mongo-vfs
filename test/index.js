@@ -1,7 +1,7 @@
 var Connection = require('mongodb').Connection;
 
 describe('mongo-vfs', function() {
-  describe('should have fs mgmt. function', function(vfs) {
+  describe('should have', function(vfs) {
     var vfs;
     before(function(callback) {
       require('../index')({
