@@ -54,6 +54,10 @@ describe('mongo-vfs', function() {
       var type = typeof(vfs.changedSince);
       type.should.equal('function');
     });
+    it('writeFile', function() {
+      var type = typeof(vfs.writeFile);
+      type.should.equal('function');
+    });
 
     after(function() {
       vfs.close();
