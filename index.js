@@ -113,6 +113,34 @@ var setup = module.exports = function(options, cb) {
     }
     return mongofs.rename(path, options, callback);
   };
+  var copy = function(path, options, callback) {
+    if (!checkType([
+      {
+        name: 'path',
+        value: path,
+        validator: _.isString
+      }
+    ], callback)) {
+      return;
+    }
+    return mongofs.copy(path, options, callback);
+  };
+  var rmFile = function(path, options, callback) {
+    if (!checkType([
+      {
+        name: 'path',
+        value: path,
+        validator: _.isString
+      }, {
+        name: 'from',
+        value: options.from,
+        validator: _.isObject
+      }
+    ], callback)) {
+      return;
+    }
+    return mongofs.rmFile(path, options, callback);
+  };
   
   var vfs = {
     stat: stat,
@@ -121,7 +149,9 @@ var setup = module.exports = function(options, cb) {
     mkfile: mkfile,
     mkdir: mkdir,
     rmdir: rmdir,
+    rmfile: rmFile,
     rename: rename,
+    copy: copy,
     close: mongofs.close
   };
   
