@@ -106,7 +106,7 @@ var setup = module.exports = function(options, cb) {
       }, {
         name: 'from',
         value: options.from,
-        validator: _.isObject
+        validator: _.isString
       }
     ], callback)) {
       return;
@@ -134,7 +134,7 @@ var setup = module.exports = function(options, cb) {
       }, {
         name: 'from',
         value: options.from,
-        validator: _.isObject
+        validator: _.isString
       }
     ], callback)) {
       return;
