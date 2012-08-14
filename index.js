@@ -142,10 +142,24 @@ var setup = module.exports = function(options, cb) {
     return mongofs.rmFile(path, options, callback);
   };
   
+  var writeFile = function(path, options, callback) {
+    if (!checkType([
+      {
+        name: 'path',
+        value: path,
+        validator: _.isString
+      }
+    ], callback)) {
+      return;
+    }
+    return mongofs.writefile(path, options, callback);
+  };
+  
   var vfs = {
     stat: stat,
     readfile: readfile,
     readdir: readdir,
+    writefile: writeFile,
     mkfile: mkfile,
     mkdir: mkdir,
     rmdir: rmdir,

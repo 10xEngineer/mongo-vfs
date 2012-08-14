@@ -64,7 +64,7 @@
                 return _.defer(next, err);
               });
             });
-          }, addFile('/folder', 'bar'), addFile('/folder', 'bar2'), addDirectory('/folder/folder2'), addCoffeeFile
+          }, addFile('/folder/', 'bar'), addFile('/folder/', 'bar2'), addDirectory('/folder/folder2/'), addCoffeeFile
         ], done);
       });
       addFile = function(path, filename, content) {
@@ -134,6 +134,29 @@
         });
       });
     });
+    describe('writefile', function() {
+      it('should write a file', function(done) {
+        var stream = options.stream = new Stream();
+        mfs.writefile('/folder/baz', options, function(err, meta) {
+          mfs.readfile('/folder/baz', options, function(err, meta) {
+            var data;
+            if (err) {
+              return done(err);
+            }
+            data = [];
+            meta.stream.on('data', function(chunk) {
+              return data.push(chunk);
+            });
+            return meta.stream.on('end', function() {
+              data.join().should.eql('HelloWorld');
+              return done();
+            });
+          });
+        });
+        stream.emit('data', 'HelloWorld');
+        stream.emit('end');
+      });
+    });
     describe('mkfile', function() {
       it('should create a new temp file and return stream to it', function(done) {
         var stream = options.stream = new Stream();
@@ -174,12 +197,12 @@
     });
     describe('mkdir', function() {
       it('should create .empty file in new directory', function(done) {
-        return mfs.mkdir('/folder2', options, function(err, meta) {
+        return mfs.mkdir('/folder3', options, function(err, meta) {
           if (err) {
             return done(err);
           }
           return files.findOne({
-            'metadata.path': '/folder2'
+            'metadata.path': '/folder3/'
           }, function(err, doc) {
             if (err) {
               done(err);
@@ -222,7 +245,7 @@
             docs.should.not.be.empty;
             cursor = files.find({
               filename: 'bar',
-              'metadata.path': '/folder',
+              'metadata.path': '/folder/',
               'metadata.bucket': options.bucketId
             });
             return cursor.toArray(function(err, docs) {
@@ -250,7 +273,7 @@
               return done(err);
             }
             cursor = files.find({
-              'metadata.path': '/baz'
+              'metadata.path': '/baz/'
             });
             return cursor.toArray(function(err, docs) {
               if (err) {
@@ -258,7 +281,7 @@
               }
               docs.should.not.be.empty;
               return files.find({
-                'metadata.path': '/folder'
+                'metadata.path': '/folder/'
               }).toArray(function(err, docs) {
                 if (err) {
                   done(err);
@@ -287,6 +310,7 @@
         return stream.emit('end');
       });
     });
+
     describe('readdir', function() {
       return it('should list all files and folders in directory', function(done) {
         return mfs.readdir('/folder/', options, function(err, meta) {
@@ -321,7 +345,7 @@
           meta.should.be.a('object');
           meta.should.have.property('name', 'bar');
           meta.should.have.property('mime');
-          meta.should.have.property('path', '/folder');
+          meta.should.have.property('path', '/folder/');
           meta.should.have.property('size');
           return done();
         });
@@ -361,7 +385,7 @@
           }
           return files.findOne({
             filename: 'bar_copy',
-            'metadata.path': '/folder',
+            'metadata.path': '/folder/',
             'metadata.bucket': options.bucketId
           }, function(err, doc) {
             if (err) {
@@ -371,7 +395,7 @@
             doc.should.be.a('object');
             doc.should.have.property('filename', 'bar_copy');
             doc.should.have.property('metadata');
-            doc.metadata.should.have.property('path', '/folder');
+            doc.metadata.should.have.property('path', '/folder/');
             doc.should.have.property('contentType', 'application/coffee');
             return done();
           });
@@ -382,7 +406,7 @@
       return it('should remove file', function(done) {
         return files.findOne({
           filename: 'bar',
-          'metadata.path': '/folder',
+          'metadata.path': '/folder/',
           'metadata.bucket': options.bucketId
         }, function(err, doc) {
           if (err) {
@@ -401,7 +425,7 @@
               docs.should.be.empty;
               return files.findOne({
                 filename: 'bar',
-                'metadata.path': '/folder',
+                'metadata.path': '/folder/',
                 'metadata.bucket': options.bucketId
               }, function(err, doc) {
                 if (err) {
@@ -422,7 +446,7 @@
             return done(err);
           }
           return files.findOne({
-            'metadata.path': '/folder/folder2'
+            'metadata.path': '/folder/folder2/'
           }, function(err, doc) {
             if (err) {
               return done(err);
@@ -442,7 +466,7 @@
           };
           fn.should["throw"](/not empty$/);
           return files.find({
-            'metadata.path': /^\/folder/
+            'metadata.path': /^\/folder\//
           }).toArray(function(err, docs) {
             if (err) {
               return done(err);
@@ -459,7 +483,7 @@
             done(err);
           }
           return files.findOne({
-            'metadata.path': /^\/folder/
+            'metadata.path': /^\/folder\//
           }, function(err, doc) {
             if (err) {
               return done(err);

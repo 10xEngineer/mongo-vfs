@@ -55,7 +55,7 @@ describe('mongo-vfs', function() {
       type.should.equal('function');
     });
     it('writeFile', function() {
-      var type = typeof(vfs.writeFile);
+      var type = typeof(vfs.writefile);
       type.should.equal('function');
     });
 

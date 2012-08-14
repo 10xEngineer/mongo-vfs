@@ -1,1 +1,1 @@
-* Path shouldn't have trailing slashes (/)
+* Path should always have trailing slashes (/)
