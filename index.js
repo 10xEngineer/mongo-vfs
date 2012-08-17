@@ -131,15 +131,11 @@ var setup = module.exports = function(options, cb) {
         name: 'path',
         value: path,
         validator: _.isString
-      }, {
-        name: 'from',
-        value: options.from,
-        validator: _.isString
       }
     ], callback)) {
       return;
     }
-    return mongofs.rmFile(path, options, callback);
+    return mongofs.rmfile(path, options, callback);
   };
   
   var writeFile = function(path, options, callback) {
