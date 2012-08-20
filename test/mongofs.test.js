@@ -212,6 +212,27 @@
           });
         });
       });
+      it('should create .empty file in new sub directory', function(done) {
+        return mfs.mkdir('/testFolder', options, function(err, meta) {
+          if (err) {
+            return done(err);
+          }
+          mfs.mkdir('/testFolder/testFolder2', options, function(err, meta) {
+            if (err) {
+              return done(err);
+            }
+            return files.findOne({
+              'metadata.path': '/testFolder/testFolder2/'
+            }, function(err, doc) {
+              if (err) {
+                done(err);
+              }
+              doc.should.exist;
+              return done();
+            });
+          });
+        });
+      });
       return it('should reject if there already is directory with the same name', function(done) {
         return mfs.mkdir('/folder/folder2', options, function(err, meta) {
           var fn;
