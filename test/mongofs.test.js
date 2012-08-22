@@ -137,6 +137,7 @@
     describe('writefile', function() {
       it('should write a file', function(done) {
         var stream = options.stream = new Stream();
+        stream.readable = true;
         mfs.writefile('/folder/baz', options, function(err, meta) {
           mfs.readfile('/folder/baz', options, function(err, meta) {
             var data;
@@ -160,6 +161,7 @@
     describe('mkfile', function() {
       it('should create a new temp file and return stream to it', function(done) {
         var stream = options.stream = new Stream();
+        stream.readable = true;
         mfs.mkfile('/bar', options, function(err, meta) {
           if (err) {
             return done(err);
@@ -181,6 +183,7 @@
       });
       return it('should reject if there is another file with the same name', function(done) {
         var stream = options.stream = new Stream();
+        stream.readable = true;
         mfs.mkfile('/folder/bar', options, function(err, meta) {
           var fn;
           fn = function() {
@@ -282,6 +285,7 @@
       
       it('should rename a directory', function(done) {
         var stream = options.stream = new Stream();
+        stream.readable = true;
         mfs.mkfile('/folder', options, function(err) {
           if (err) {
             return done(err);
