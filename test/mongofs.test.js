@@ -6,7 +6,7 @@
 
   mongodb = require('mongodb');
 
-  Stream = require('stream');
+  Stream = require('stream').Stream;
 
   Path = require('path');
 
